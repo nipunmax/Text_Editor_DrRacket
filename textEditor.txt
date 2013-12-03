@@ -1,0 +1,189 @@
+(require 2htdp/image)
+(require 2htdp/universe)
+
+;; editor-project-starter.rkt
+;;
+;; In this project you will design a simple one line text editor.  
+;;
+;; The screen looks like:
+;; 
+;;     abc|def
+;;
+;; where | is the cursor.
+;;
+;; Typing a character inserts that character before the cursor.
+;; The backspace key deletes the character before the cursor.
+;; The left and right arrow keys move the cursor left and right.
+
+
+
+;; =================================================================================
+;; Constants:
+
+(define WIDTH  200)
+(define HEIGHT  20)
+
+(define TEXT-SIZE  18)
+(define TEXT-COLOR "BLACK")
+
+(define CURSOR (rectangle 1 20 "solid" "red"))
+
+(define MTS (empty-scene WIDTH HEIGHT))
+
+
+
+;; =================================================================================
+;; Data Definitions:
+
+(define-struct editor (txt cp))
+;; Editor is (make-editor String Natural)
+;; interp. the current text (txt) and cursor position (cp) using a 0-based index
+
+(define ED1 (make-editor ""       0)) ; empty
+(define ED2 (make-editor "abcdef" 0)) ; cursor at beginning as in |abcdef
+(define ED3 (make-editor "abcdef" 3)) ; cursor in middle of text as in abc|def
+(define ED4 (make-editor "abcdef" 6)) ; cursor at end as in abcdef|
+
+#;
+(define (fn-for-editor e)
+  (... (editor-txt e)
+       (editor-cp e)))
+
+;; =================================================================================
+;; Functions:
+
+;; Editor -> Editor
+;; start the world with an initial state e, for example (main (make-editor "" 0))
+(define (main e)
+  (big-bang e
+            (to-draw    render)                  ; Editor -> Image
+            (on-key     handle-key)))            ; Editor KeyEvent -> Editor
+
+
+
+;; Editor -> Image
+;; place text with cursor at left, middle edge of MTS
+(check-expect (render (make-editor "abcdef" 3))
+              (overlay/align "left"
+                             "middle"
+                             (beside (text "abc" TEXT-SIZE TEXT-COLOR)
+                                     CURSOR
+                                     (text "def" TEXT-SIZE TEXT-COLOR))
+                             MTS))
+
+(check-expect (render (make-editor "def" 0))
+              (overlay/align "left"
+                             "middle"
+                             (beside CURSOR (text "def" TEXT-SIZE TEXT-COLOR))MTS))
+(check-expect (render (make-editor "abc" 3))
+              (overlay/align "left"
+                             "middle"
+                             (beside (text "abc" TEXT-SIZE TEXT-COLOR)CURSOR) MTS))
+(check-expect (render (make-editor "" 0))
+              (overlay/align "left"
+                             "middle"
+                             (beside CURSOR (text "" TEXT-SIZE TEXT-COLOR)) MTS))
+
+
+;(define (render e) MTS) ;stub
+
+(define (render e)
+  (overlay/align "left"
+                  "middle"
+                 (beside (text (txt-before e) TEXT-SIZE TEXT-COLOR)
+                                            CURSOR
+                                            (text (txt-after e) TEXT-SIZE TEXT-COLOR))MTS))
+
+
+
+
+;; Editor ->  String
+;;produce the text before cursor
+(check-expect (txt-before (make-editor "abc" 3)) "abc")
+(check-expect (txt-before (make-editor "" 0)) "")
+(check-expect (txt-before (make-editor "abc" 1)) "a")
+(check-expect (txt-before (make-editor "abc" 0)) "")
+
+;(define (txt-before e) "")  ;stub
+(define (txt-before e)
+  (substring (editor-txt e) 0 (editor-cp e)))
+
+
+
+;; Editor ->  String
+;;produce the text after cursor
+(check-expect (txt-after (make-editor "abcdef" 3)) "def")
+(check-expect (txt-after (make-editor "" 0)) "")
+(check-expect (txt-after (make-editor "abc" 0)) "abc")
+
+;(define (txt-after e) "") ;stub
+(define (txt-after e)
+  (substring (editor-txt e) (editor-cp e) (string-length (editor-txt e))))
+
+
+
+
+
+
+;; Editor KeyEvent -> Editor
+;; call appropriate function for each keyboard command
+(check-expect (handle-key (make-editor "house" 3) "left")(make-editor "house" 2))
+(check-expect (handle-key (make-editor "house" 3) "right")(make-editor "house" 4))
+(check-expect (handle-key (make-editor "house" 5)"\b")(make-editor "hous" 4))
+(check-expect (handle-key (make-editor "house" 5) "s")(make-editor "houses" 6))
+(check-expect (handle-key (make-editor "house" 5) "shift")(make-editor "house" 5))
+;(define (handle-key e key) e) ;stub
+
+(define (handle-key e key)
+  (cond [(key=? key "left")(press-left e)]
+        [(key=? key "right")(press-right e)]
+        [(key=? key "\b")(press-back-space e)]        
+        [(= (string-length key) 1) (insert-letter e key)]
+        [else (make-editor (editor-txt e) (editor-cp e))]))
+
+
+;;Editor -> Editor
+;; produce the  changing of the cursor when press the left arrow key
+(check-expect (press-left (make-editor"house" 3))(make-editor "house" 2))
+(check-expect (press-left (make-editor"house" 0))(make-editor "house" 0))
+;;(define (press-left e) "") ;stub
+(define (press-left e)
+   (if (> (editor-cp e) 0)
+    (make-editor (editor-txt e) (- (editor-cp e) 1))
+    (make-editor (editor-txt e) (editor-cp e))))
+
+
+;;Editor -> Editor
+;; produce the  changing of the cursor when press the right arrow key
+(check-expect (press-right (make-editor"house" 3))(make-editor "house" 4))
+(check-expect (press-right (make-editor"house" 5))(make-editor "house" 5))
+;;(define (press-right e) "") ;stub
+(define (press-right e)
+  (if (<  (editor-cp e) (string-length (editor-txt e)))
+  (make-editor (editor-txt e) (+ (editor-cp e) 1)) 
+  (make-editor (editor-txt e) (editor-cp e))))
+
+;;Editor -> Editor 
+;; produce the  changing of the cursor and text when press the delete key
+(check-expect (press-back-space (make-editor "house" 5))(make-editor "hous" 4))
+(check-expect (press-back-space (make-editor "" 0))(make-editor "" 0))
+;;(define (press-back-space e) "")
+(define (press-back-space e)
+  (if (> (editor-cp e) 0)
+  (make-editor (substring (editor-txt e) 0 (- (editor-cp e) 1)) (- (editor-cp e) 1))
+ (make-editor (editor-txt e) (editor-cp e))))
+
+;;Editor -> Editor 
+;; produce the new  created text after  enter a letter.
+(check-expect (insert-letter (make-editor"house" 5) "s")(make-editor "houses" 6))
+(check-expect (insert-letter (make-editor"house" 5) "\t")(make-editor "house" 5))
+(check-expect (insert-letter (make-editor"house" 5) "\u007F")(make-editor "house" 5))
+;; "\u007F" is delete key
+;;; just because when this function run its already checking the string-length no need to put check different length key example here
+;;(define (insert-letter e " ")" ") ;stab
+(define (insert-letter e key)
+  (cond [(key=? key "\r")(make-editor (editor-txt e) (editor-cp e))]
+        [(key=? key "\t")(make-editor (editor-txt e) (editor-cp e))]
+        [(key=? key "\u007F")(make-editor (editor-txt e) (editor-cp e))]
+        [else (make-editor (string-append (editor-txt e) key) (+ (editor-cp e) 1))]))
+  
